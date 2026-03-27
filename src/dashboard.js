@@ -5,14 +5,16 @@ import EditorComponent from './components/editor';
 import SuggestionsPanel from './components/suggestions';
 import Sidebar from './components/sidebar';
 import Navbar from './components/navbar';
+import ProfilePage from './profile';
 import './dashboard.css';
 
-const API = 'http://127.0.0.1:8000/api';
+const API = process.env.NODE_ENV === 'production' ? 'https://hackthon-kssem-new.onrender.com/api' : 'http://127.0.0.1:8000/api';
 const getToken = () => localStorage.getItem('token');
 const authHeaders = () => ({ Authorization: `Bearer ${getToken()}` });
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const [currentView, setCurrentView] = useState('editor');
   const [explorerData, setExplorerData] = useState({ folders: [], orphan_files: [] });
   const [activeFile, setActiveFile] = useState(null);
   const [code, setCode] = useState('# Write your Python code here\nprint("Hello, CleanCodeX!")');
@@ -22,11 +24,23 @@ const Dashboard = () => {
   const [stats, setStats] = useState({ errors: 0, warnings: 0, info: 0, fixable: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing]= useState(false);
-  const [output, setOutput] = useState(null);
+  const [outputLines, setOutputLines] = useState([]);
+  const [termStatus, setTermStatus] = useState(null);
+  const [termExit, setTermExit] = useState(null);
+  const [termInput, setTermInput] = useState('');
   const [showTerminal, setShowTerminal] = useState(false);
+  const wsRef = useRef(null);
+  const termEndRef = useRef(null);
   const [backendStatus, setBackendStatus] = useState('checking');
   const [diffPreview, setDiffPreview] = useState(null);
+  const [theme, setTheme] = useState(localStorage.getItem('ide-theme') || 'vs-dark');
   const debounceRef = useRef(null);
+
+  useEffect(() => {
+    if (termEndRef.current) {
+      termEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [outputLines]);
 
   // ── Auth & Init ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -36,6 +50,11 @@ const Dashboard = () => {
     const interval = setInterval(checkBackend, 10000);
     return () => clearInterval(interval);
   }, []); // eslint-disable-line
+
+  useEffect(() => {
+    localStorage.setItem('ide-theme', theme);
+    document.body.className = `theme-${theme}`;
+  }, [theme]);
 
   // Keyboard shortcuts forwarded from Monaco editor
   useEffect(() => {
@@ -51,7 +70,7 @@ const Dashboard = () => {
 
   const checkBackend = async () => {
     try {
-      await axios.get('http://127.0.0.1:8000/');
+      await axios.get(process.env.NODE_ENV === 'production' ? 'https://hackthon-kssem-new.onrender.com/' : 'http://127.0.0.1:8000/');
       setBackendStatus('connected');
     } catch { setBackendStatus('offline'); }
   };
@@ -69,10 +88,11 @@ const Dashboard = () => {
   const handleFileSelect = (file) => {
     setActiveFile(file);
     setCode(file.content || '');
-    setSuggestions([]); setMarkers([]); setOutput(null);
+    setSuggestions([]); setMarkers([]); setOutputLines([]);
     setShowTerminal(false); setDiffPreview(null);
     setStats({ errors: 0, warnings: 0, info: 0, fixable: 0 });
     setQualityScore(100);
+    setCurrentView('editor');
   };
 
   const handleSave = async () => {
@@ -121,13 +141,51 @@ const Dashboard = () => {
   const handleRun = async () => {
     setIsLoading(true);
     setShowTerminal(true);
-    setOutput({ stdout: '', stderr: '', exit_code: null, status: 'running' });
-    try {
-      const res = await axios.post(`${API}/execute/execute`, { code });
-      setOutput({ ...res.data, status: res.data.exit_code === 0 ? 'success' : 'error' });
-    } catch (err) {
-      setOutput({ stdout: '', stderr: err.message, exit_code: 1, status: 'error' });
-    } finally { setIsLoading(false); }
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    setOutputLines([]);
+    setTermStatus('running');
+    setTermExit(null);
+    
+    // Connect to WebSocket
+    const wsUrl = API.replace('http', 'ws').replace('/api', '') + '/api/execute/ws';
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ code }));
+    };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'stdout' || msg.type === 'stderr') {
+        setOutputLines(prev => [...prev, msg]);
+      } else if (msg.type === 'exit') {
+        setTermStatus('stopped');
+        setTermExit(msg.code);
+        setIsLoading(false);
+      } else if (msg.type === 'error') {
+        setOutputLines(prev => [...prev, { type: 'stderr', content: msg.content }]);
+        setTermStatus('error');
+        setIsLoading(false);
+      }
+    };
+
+    ws.onclose = () => {
+      setTermStatus(prev => prev === 'running' ? 'stopped' : prev);
+      setIsLoading(false);
+    };
+  };
+
+  const handleTermInput = (e) => {
+    if (e.key === 'Enter') {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(termInput);
+        setOutputLines(prev => [...prev, { type: 'stdout', content: termInput + '\n' }]);
+        setTermInput('');
+      }
+    }
   };
 
   // ── Analyze ──────────────────────────────────────────────────────────────
@@ -197,6 +255,8 @@ const Dashboard = () => {
         onCheck={() => handleCheck()}
         onFormat={handleFormat}
         onNewFile={handleNewFile}
+        onThemeChange={setTheme}
+        onNavigateProfile={() => setCurrentView('profile')}
         isLoading={isLoading}
         isAnalyzing={isAnalyzing}
         backendStatus={backendStatus}
@@ -211,31 +271,51 @@ const Dashboard = () => {
         />
 
         <main className="editor-area">
-          <div className="editor-container-wrapper">
-            <div className="editor-container">
-              <EditorComponent code={code} onChange={handleCodeChange} markers={markers} />
+          {currentView === 'profile' ? (
+            <ProfilePage onClose={() => setCurrentView('editor')} theme={theme} onThemeChange={setTheme} />
+          ) : (
+            <div className="editor-container-wrapper">
+              <div className="editor-container">
+              <EditorComponent code={code} onChange={handleCodeChange} markers={markers} theme={theme} />
             </div>
 
-            {showTerminal && output && (
+            {showTerminal && (
               <div className="terminal-area">
                 <div className="term-header">
-                  <div className={`term-dot ${output.status}`} />
+                  <div className={`term-dot ${termStatus === 'running' ? 'running' : termExit === 0 ? 'success' : 'error'}`} />
                   <span>TERMINAL — Python 3.11</span>
-                  <button className="term-close" onClick={() => setShowTerminal(false)}>✕</button>
+                  <button className="term-close" onClick={() => { setShowTerminal(false); if(wsRef.current) wsRef.current.close(); }}>✕</button>
                 </div>
-                <div className="term-body">
-                  {output.status === 'running' && <div className="term-running">⚙ Running…</div>}
-                  {output.stdout && <pre className="term-stdout">{output.stdout}</pre>}
-                  {output.stderr && <pre className="term-stderr">{output.stderr}</pre>}
-                  {output.exit_code !== null && output.exit_code !== undefined && (
-                    <div className={`term-exit ${output.exit_code === 0 ? 'ok' : 'fail'}`}>
-                      Process exited with code {output.exit_code}
+                <div className="term-body" onClick={() => document.getElementById('term-input')?.focus()}>
+                  {outputLines.map((line, idx) => (
+                    <span key={idx} className={`term-${line.type}`}>{line.content}</span>
+                  ))}
+                  {termStatus === 'running' && (
+                    <div className="term-input-row">
+                      <span className="term-prompt">&gt;</span>
+                      <input 
+                        id="term-input"
+                        type="text" 
+                        value={termInput}
+                        onChange={(e) => setTermInput(e.target.value)}
+                        onKeyDown={handleTermInput}
+                        autoFocus
+                        autoComplete="off"
+                        spellCheck="false"
+                      />
                     </div>
                   )}
+                  {termExit !== null && (
+                    <div className={`term-exit ${termExit === 0 ? 'ok' : 'fail'}`}>
+                      Process exited with code {termExit}
+                    </div>
+                  )}
+                  <div ref={termEndRef} />
                 </div>
               </div>
             )}
           </div>
+          )}
         </main>
 
         <SuggestionsPanel

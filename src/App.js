@@ -4,6 +4,7 @@ import LandingPage from './landingpage';
 import LoginPage from './login';
 import RegisterPage from './register';
 import Dashboard from './dashboard';
+import ProfilePage from './profile';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<ProfilePage />} />
       </Routes>
     </Router>
   );
