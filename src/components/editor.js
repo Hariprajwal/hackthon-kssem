@@ -1,3 +1,4 @@
+/* eslint-disable no-template-curly-in-string */
 import React, { useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 

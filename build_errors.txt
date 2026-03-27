@@ -1,0 +1,36 @@
+
+> frontend@0.1.0 build
+> react-scripts build
+
+(node:37164) [DEP0176] DeprecationWarning: fs.F_OK is deprecated, use fs.constants.F_OK instead
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Creating an optimized production build...
+
+Treating warnings as errors because process.env.CI = true.
+Most CI servers set it automatically.
+
+Failed to compile.
+
+[eslint] 
+src\components\editor.js
+  Line 18:68:  Unexpected template string expression  no-template-curly-in-string
+  Line 19:67:  Unexpected template string expression  no-template-curly-in-string
+  Line 20:57:  Unexpected template string expression  no-template-curly-in-string
+  Line 21:61:  Unexpected template string expression  no-template-curly-in-string
+  Line 22:56:  Unexpected template string expression  no-template-curly-in-string
+  Line 23:60:  Unexpected template string expression  no-template-curly-in-string
+  Line 24:60:  Unexpected template string expression  no-template-curly-in-string
+  Line 25:65:  Unexpected template string expression  no-template-curly-in-string
+  Line 26:65:  Unexpected template string expression  no-template-curly-in-string
+  Line 27:62:  Unexpected template string expression  no-template-curly-in-string
+  Line 28:72:  Unexpected template string expression  no-template-curly-in-string
+  Line 29:72:  Unexpected template string expression  no-template-curly-in-string
+  Line 30:67:  Unexpected template string expression  no-template-curly-in-string
+  Line 31:72:  Unexpected template string expression  no-template-curly-in-string
+  Line 32:71:  Unexpected template string expression  no-template-curly-in-string
+  Line 33:69:  Unexpected template string expression  no-template-curly-in-string
+  Line 34:66:  Unexpected template string expression  no-template-curly-in-string
+  Line 35:71:  Unexpected template string expression  no-template-curly-in-string
+  Line 36:68:  Unexpected template string expression  no-template-curly-in-string
+
+
