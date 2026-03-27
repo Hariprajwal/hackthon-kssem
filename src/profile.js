@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import axios from 'axios';
 import { User, Lock, Key, ArrowLeft } from 'lucide-react';
 import './profile.css';

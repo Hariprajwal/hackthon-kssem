@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Activity, Save, FilePlus, Wand2, Play, Search, Zap, ChevronDown } from 'lucide-react';
+import { Activity, Save, FilePlus, Wand2, Play, Search, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './navbar.css';
 
